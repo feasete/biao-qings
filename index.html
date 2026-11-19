@@ -5,8 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的赛博表情包库</title>
     <style>
-        :root { --bg-color: #f6f8fa; --text-color: #24292f; --card-bg: #ffffff; --border-color: #d0d7de; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
+        :root { --bg-color: #f6f8fa; --text-color: #24292f; --card-bg: #ffffff; --border-color: #d0d7de; --primary: #0969da; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 80px 20px 20px; }
+        
+        /* 顶部悬浮控制栏 */
+        .control-bar { position: fixed; top: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: center; align-items: center; gap: 15px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.05); flex-wrap: wrap; }
+        .control-bar select, .control-bar input { padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; outline: none; }
+        .export-btn { background-color: #2da44e; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
+        .export-btn:hover { background-color: #2c974b; }
+
         .header { text-align: center; margin-bottom: 40px; }
         .header h1 { font-size: 24px; margin-bottom: 8px; }
         .header p { font-size: 14px; color: #57606a; }
@@ -14,11 +21,21 @@
         .category-title { max-width: 1200px; margin: 40px auto 16px; font-size: 18px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; display: flex; align-items: center; gap: 10px; }
         .category-title span { font-size: 14px; color: #57606a; font-weight: normal; }
         
-        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px; max-width: 1200px; margin: 0 auto; }
-        .img-card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; max-width: 1200px; margin: 0 auto; }
+        
+        /* 卡片样式修改 */
+        .img-card { position: relative; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s, box-shadow 0.2s; }
         .img-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(140,149,159,0.2); }
-        .img-card img { width: 100%; height: 130px; object-fit: contain; border-radius: 8px; background-color: #f6f8fa; }
-        .img-name { margin-top: 8px; font-size: 12px; color: #57606a; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        /* 复选框 */
+        .img-checkbox { position: absolute; top: 12px; left: 12px; width: 20px; height: 20px; cursor: pointer; z-index: 10; accent-color: var(--primary); }
+        
+        /* 图片(点击复制) */
+        .img-card img { width: 100%; height: 130px; object-fit: contain; border-radius: 8px; background-color: #f6f8fa; cursor: pointer; }
+        
+        /* 备注输入框 */
+        .remark-input { width: 90%; margin-top: 8px; padding: 4px 8px; font-size: 12px; border: 1px solid transparent; border-radius: 4px; background: #f0f3f6; text-align: center; outline: none; transition: border 0.2s; }
+        .remark-input:focus { border-color: var(--primary); background: white; }
         
         .loading { text-align: center; margin-top: 50px; font-size: 16px; color: #57606a; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background-color: #24292f; color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; opacity: 0; transition: all 0.3s ease; pointer-events: none; z-index: 1000; }
@@ -27,16 +44,30 @@
 </head>
 <body>
 
+    <!-- 顶部操作栏 -->
+    <div class="control-bar">
+        <span style="font-size: 14px; font-weight: bold;">导出格式：</span>
+        <span>备注</span>
+        <select id="separator-select">
+            <option value=" ">空格 ( )</option>
+            <option value=",">逗号 (,)</option>
+            <option value=":">冒号 (:)</option>
+            <option value=" - ">横杠 ( - )</option>
+        </select>
+        <span>链接</span>
+        <button class="export-btn" id="export-btn">📥 导出选中的 TXT</button>
+    </div>
+
     <div class="header">
         <h1>🐾 我的赛博表情包库</h1>
-        <p>点击图片即可复制引用链接</p>
+        <p>点击图片即可复制引用链接，勾选并填写备注后可一键导出</p>
     </div>
 
     <div id="app">
         <div class="loading">🐈 正在扫描文件夹，请稍候...</div>
     </div>
 
-    <div class="toast" id="toast">✅ 链接已复制到剪贴板！</div>
+    <div class="toast" id="toast">✅ 链接已复制！</div>
 
     <script>
         // ==========================================
@@ -46,7 +77,6 @@
         const repoName = "biao-qings"; 
         const branch = "main"; 
         
-        // 你要展示的文件夹分类（左边的名字随便起，右边的值必须是 GitHub 里的真实文件夹名）
         const folderMap = {
             "宝宝狗/狗狗": "bbgs",
             "纯洁小猫/贴贴": "cjxmzsb",
@@ -60,71 +90,73 @@
 
         // 核心逻辑：自动扫描目录
         async function loadStickers() {
-            app.innerHTML = ''; // 清空 loading
+            app.innerHTML = ''; 
 
-            // 遍历你要展示的文件夹
             for (const [categoryName, folderName] of Object.entries(folderMap)) {
                 try {
-                    // 使用 jsDelivr 的 Data API 获取文件夹下的文件列表（不限流，免 403）
                     const apiUrl = `https://data.jsdelivr.com/v1/packages/gh/${githubUser}/${repoName}@${branch}`;
                     const response = await fetch(apiUrl);
                     if (!response.ok) continue;
                     
                     const data = await response.json();
-                    
-                    // 从返回的完整文件树中，找到对应的文件夹
                     const targetFolder = data.files.find(f => f.type === 'directory' && f.name === folderName);
                     if (!targetFolder || !targetFolder.files) continue;
 
-                    // 过滤出图片文件
                     const imageFiles = targetFolder.files.filter(file => 
                         file.type === 'file' && /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)
                     );
 
                     if (imageFiles.length === 0) continue;
 
-                    // 生成分类标题
                     const title = document.createElement('h2');
                     title.className = 'category-title';
                     title.innerHTML = `${categoryName} <span>(${imageFiles.length}张)</span>`;
                     app.appendChild(title);
 
-                    // 生成图片网格
                     const gallery = document.createElement('div');
                     gallery.className = 'gallery';
 
                     imageFiles.forEach(file => {
-                        // 使用相对路径，直接从你当前的 GitHub Pages 加载图片，速度极快！
-                        // 注意：这里不带域名，直接是 folder/file 格式
                         const encodedPath = `${folderName}/${file.name}`.split('/').map(encodeURIComponent).join('/');
-                        
-                        // 如果是为了复制给别人用，我们需要完整的域名
                         const fullUrl = `https://feasete.github.io/${repoName}/${encodedPath}`;
 
                         const card = document.createElement('div');
                         card.className = 'img-card';
                         
+                        // 1. 添加复选框
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.className = 'img-checkbox';
+                        
+                        // 2. 添加图片 (点击复制)
                         const img = document.createElement('img');
-                        img.src = encodedPath; // 本地相对路径加载展示
+                        img.src = encodedPath;
                         img.loading = 'lazy';
                         img.alt = file.name;
                         
-                        const nameDiv = document.createElement('div');
-                        nameDiv.className = 'img-name';
-                        nameDiv.innerText = file.name;
-                        nameDiv.title = file.name;
-                        
-                        card.appendChild(img);
-                        card.appendChild(nameDiv);
+                        // 3. 添加备注输入框 (默认去掉后缀名)
+                        const remarkInput = document.createElement('input');
+                        remarkInput.type = 'text';
+                        remarkInput.className = 'remark-input';
+                        remarkInput.placeholder = '填写备注...';
+                        remarkInput.value = file.name.replace(/\.[^/.]+$/, ""); 
 
-                        // 点击复制时，复制完整的网页链接
-                        card.addEventListener('click', () => {
+                        // 阻止输入框和复选框的点击事件冒泡到图片复制
+                        checkbox.addEventListener('click', (e) => e.stopPropagation());
+                        remarkInput.addEventListener('click', (e) => e.stopPropagation());
+
+                        // 图片点击复制功能
+                        img.addEventListener('click', () => {
                             navigator.clipboard.writeText(fullUrl).then(() => {
-                                showToast();
+                                showToast('✅ 链接已复制！');
                             }).catch(() => {
                                 alert('复制失败，请手动复制：' + fullUrl);
                             });
                         });
+
+                        card.appendChild(checkbox);
+                        card.appendChild(img);
+                        card.appendChild(remarkInput);
 
                         gallery.appendChild(card);
                     });
@@ -136,14 +168,56 @@
             }
         }
 
+        // ==========================================
+        // 导出 TXT 核心逻辑
+        // ==========================================
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const separator = document.getElementById('separator-select').value;
+            const cards = document.querySelectorAll('.img-card');
+            let exportText = "";
+
+            cards.forEach(card => {
+                const checkbox = card.querySelector('.img-checkbox');
+                const remarkInput = card.querySelector('.remark-input');
+                const img = card.querySelector('img');
+                
+                // 如果被勾选了
+                if (checkbox.checked) {
+                    const remark = remarkInput.value.trim() || "无备注";
+                    // 获取图片的真实完整链接
+                    const encodedPath = img.getAttribute('src');
+                    const fullUrl = `https://feasete.github.io/${repoName}/${encodedPath}`;
+                    
+                    // 拼接一行
+                    exportText += `${remark}${separator}${fullUrl}\n`;
+                }
+            });
+
+            if (!exportText) {
+                showToast('⚠️ 请先勾选需要导出的图片！');
+                return;
+            }
+
+            // 触发下载
+            const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = '表情包导出.txt';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('🎉 导出成功！');
+        });
+
         let toastTimer;
-        function showToast() {
+        function showToast(msg) {
+            toast.innerText = msg;
             toast.classList.add('show');
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => { toast.classList.remove('show'); }, 2000);
         }
 
-        // 启动！
         loadStickers();
     </script>
 </body>
