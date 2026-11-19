@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的赛博表情包库</title>
     <style>
-        :root { --bg-color: #f6f8fa; --text-color: #24292f; --card-bg: #ffffff; --border-color: #d0d7de; --primary: #0969da; }
+        :root { --bg-color: #f6f8fa; --text-color: #24292f; --card-bg: #ffffff; --border-color: #d0d7de; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
         .header { text-align: center; margin-bottom: 40px; }
         .header h1 { font-size: 24px; margin-bottom: 8px; }
         .header p { font-size: 14px; color: #57606a; }
         
-        .category-title { max-width: 1200px; margin: 40px auto 16px; font-size: 18px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
+        .category-title { max-width: 1200px; margin: 40px auto 16px; font-size: 18px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+        .category-title span { font-size: 14px; color: #57606a; font-weight: normal; }
         
         .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px; max-width: 1200px; margin: 0 auto; }
         .img-card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
@@ -19,6 +20,7 @@
         .img-card img { width: 100%; height: 130px; object-fit: contain; border-radius: 8px; background-color: #f6f8fa; }
         .img-name { margin-top: 8px; font-size: 12px; color: #57606a; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
+        .loading { text-align: center; margin-top: 50px; font-size: 16px; color: #57606a; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background-color: #24292f; color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; opacity: 0; transition: all 0.3s ease; pointer-events: none; z-index: 1000; }
         .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
     </style>
@@ -30,84 +32,101 @@
         <p>点击图片即可复制引用链接</p>
     </div>
 
-    <div id="app"></div>
+    <div id="app">
+        <div class="loading">🐈 正在努力加载表情包，请稍候...</div>
+    </div>
 
     <div class="toast" id="toast">✅ 链接已复制到剪贴板！</div>
 
     <script>
         // ==========================================
-        // 👇 在这里直接写中文路径，不用管转码 👇
-        // ==========================================
-        const stickerData = {
-            "猫猫宇宙": [
-                "猫猫/爱你，嘿嘿嘿.png", 
-                "猫猫/被打.png",
-                "猫猫/别为难俺了.png"
-            ],
-            "打工人日常": [
-                "工作/抱得太紧了喵.gif"
-            ],
-            "根目录无分类": [
-                "hello.png"
-            ]
-        };
-
-        // ==========================================
-        // 👇 基础配置（不用改） 👇
+        // 👇 基础配置 👇
         // ==========================================
         const githubUser = "feasete";
-        const repoName = "BIAOQING";
+        const repoName = "biao-qings"; // 注意你现在的仓库名是 biao-qings
         const branch = "main";
+        
+        // 你要展示的文件夹分类（名字随便起，对应的值是 GitHub 里的文件夹名）
+        const folderMap = {
+            "宝宝狗/狗狗": "bbgs",
+            "纯洁小猫/贴贴": "cjxmzsb",
+            "其他分类P": "pes",
+            "修狗与小猫": "xmxg"
+        };
+
         const baseUrl = `https://cdn.jsdelivr.net/gh/${githubUser}/${repoName}@${branch}/`;
+        const apiUrl = `https://api.github.com/repos/${githubUser}/${repoName}/contents/`;
 
         const app = document.getElementById('app');
         const toast = document.getElementById('toast');
 
-        for (const [categoryName, files] of Object.entries(stickerData)) {
-            if (files.length === 0) continue;
+        // 核心逻辑：自动去 GitHub 接口拉取数据
+        async function loadStickers() {
+            app.innerHTML = ''; // 清空 loading
 
-            const title = document.createElement('h2');
-            title.className = 'category-title';
-            title.innerText = categoryName;
-            app.appendChild(title);
+            for (const [categoryName, folderName] of Object.entries(folderMap)) {
+                try {
+                    // 调 GitHub API 获取该文件夹下的文件列表
+                    const response = await fetch(`${apiUrl}${folderName}?ref=${branch}`);
+                    if (!response.ok) continue; 
+                    
+                    const files = await response.json();
 
-            const gallery = document.createElement('div');
-            gallery.className = 'gallery';
+                    // 过滤出图片文件
+                    const imageFiles = files.filter(file => 
+                        file.type === 'file' && /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)
+                    );
 
-            files.forEach(fileName => {
-                // 🌟 核心修改点：对路径中的每一段进行 encodeURIComponent，完美兼容中文和空格
-                const encodedFileName = fileName.split('/').map(encodeURIComponent).join('/');
-                const fullUrl = baseUrl + encodedFileName;
-                
-                const card = document.createElement('div');
-                card.className = 'img-card';
-                
-                const img = document.createElement('img');
-                img.src = fullUrl;
-                img.loading = 'lazy';
-                img.alt = fileName;
-                
-                const nameDiv = document.createElement('div');
-                nameDiv.className = 'img-name';
-                // 提取文件名展示（比如把 "猫猫/爱你.png" 截成 "爱你.png"）
-                nameDiv.innerText = fileName.split('/').pop(); 
-                
-                card.appendChild(img);
-                card.appendChild(nameDiv);
+                    if (imageFiles.length === 0) continue;
 
-                card.addEventListener('click', () => {
-                    // 复制出来的是带百分号编码的安全链接
-                    navigator.clipboard.writeText(fullUrl).then(() => {
-                        showToast();
-                    }).catch(() => {
-                        alert('复制失败，请手动复制：' + fullUrl);
+                    // 生成分类标题
+                    const title = document.createElement('h2');
+                    title.className = 'category-title';
+                    title.innerHTML = `${categoryName} <span>(${imageFiles.length}张)</span>`;
+                    app.appendChild(title);
+
+                    // 生成图片网格
+                    const gallery = document.createElement('div');
+                    gallery.className = 'gallery';
+
+                    imageFiles.forEach(file => {
+                        // 用文件真实路径生成安全链接
+                        const encodedPath = file.path.split('/').map(encodeURIComponent).join('/');
+                        const fullUrl = baseUrl + encodedPath;
+
+                        const card = document.createElement('div');
+                        card.className = 'img-card';
+                        
+                        const img = document.createElement('img');
+                        img.src = fullUrl;
+                        img.loading = 'lazy';
+                        img.alt = file.name;
+                        
+                        const nameDiv = document.createElement('div');
+                        nameDiv.className = 'img-name';
+                        nameDiv.innerText = file.name;
+                        nameDiv.title = file.name;
+                        
+                        card.appendChild(img);
+                        card.appendChild(nameDiv);
+
+                        // 点击复制
+                        card.addEventListener('click', () => {
+                            navigator.clipboard.writeText(fullUrl).then(() => {
+                                showToast();
+                            }).catch(() => {
+                                alert('复制失败，请手动复制：' + fullUrl);
+                            });
+                        });
+
+                        gallery.appendChild(card);
                     });
-                });
-
-                gallery.appendChild(card);
-            });
-            
-            app.appendChild(gallery);
+                    
+                    app.appendChild(gallery);
+                } catch (error) {
+                    console.error(`加载 ${folderName} 失败:`, error);
+                }
+            }
         }
 
         let toastTimer;
@@ -116,6 +135,9 @@
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => { toast.classList.remove('show'); }, 2000);
         }
+
+        // 启动！
+        loadStickers();
     </script>
 </body>
 </html>
