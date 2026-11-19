@@ -74,8 +74,8 @@
             "修狗与小猫": "xmxg"
         };
 
-        // 使用 jsDelivr 加速直链
-        const baseUrl = `https://cdn.jsdelivr.net/gh/${githubUser}/${repoName}@${branch}/`;
+      // 比如改成 fastly 或 onmicrosoft 镜像：
+        const baseUrl = `https://fastly.jsdelivr.net/gh/${githubUser}/${repoName}@${branch}/`;
         const app = document.getElementById('app');
         const toast = document.getElementById('toast');
 
