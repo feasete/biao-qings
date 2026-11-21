@@ -1,0 +1,37 @@
+name: 🐾 提交表情包
+description: 为赛博表情包库贡献一张新图片
+title: "[新表情包] "
+labels: ["sticker-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: "感谢你的贡献！请填写以下信息，系统会自动处理。"
+  - type: dropdown
+    id: category
+    attributes:
+      label: 分类文件夹
+      description: 请选择一个存放分类
+      options:
+        - bbgs
+        - cjxmzsb
+        - pes
+        - xmxg
+        - zz-new
+    validations:
+      required: true
+  - type: input
+    id: remark
+    attributes:
+      label: 表情包备注
+      description: 给这张图起个名字（比如：好喜欢）
+      placeholder: "例如：无语凝噎"
+    validations:
+      required: true
+  - type: textarea
+    id: image
+    attributes:
+      label: 图片上传
+      description: 直接把你的表情包图片拖拽（或复制粘贴）到这个框里！
+      placeholder: "在这里粘贴图片..."
+    validations:
+      required: true
