@@ -84,46 +84,56 @@
         // ==========================================
         // 核心逻辑：自动发现根目录下的所有文件夹
         // ==========================================
-        async function loadStickers() {
+               async function loadStickers() {
             app.innerHTML = '<div class="loading">🐈 正在自动发现文件夹...</div>';
             
             try {
-                // 1. 获取仓库根目录，找到所有文件夹
                 const rootRes = await fetch(
                     `https://api.github.com/repos/${githubUser}/${repoName}/contents/?ref=${branch}`,
                     { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` } }
                 );
-                if (!rootRes.ok) throw new Error(`根目录请求失败，请检查 Token 或网络`);
+                
+                if (!rootRes.ok) {
+                    throw new Error(`请求仓库根目录失败！状态码: ${rootRes.status}。可能是 Token 错误或 API 限流。`);
+                }
                 
                 const rootItems = await rootRes.json();
-                // 只保留文件夹，排除 .github 等隐藏目录
                 const folders = rootItems.filter(item => item.type === 'directory' && !item.name.startsWith('.'));
                 
                 app.innerHTML = ''; // 清空加载提示
 
-                // 2. 遍历每个文件夹，抓取里面的图片
+                if (folders.length === 0) {
+                    app.innerHTML = `<div style="color:red; text-align:center;">仓库里没有找到任何文件夹哦！</div>`;
+                    return;
+                }
+
+                let hasRenderedImages = false; // 标记是否成功渲染了图片
+
                 for (const folder of folders) {
                     const folderName = folder.name;
-                    const categoryName = folderName; 
-
                     const folderRes = await fetch(
                         `https://api.github.com/repos/${githubUser}/${repoName}/contents/${folderName}?ref=${branch}`,
                         { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` } }
                     );
-                    if (!folderRes.ok) continue;
+                    
+                    if (!folderRes.ok) {
+                        console.warn(`跳过文件夹 ${folderName}，读取失败`);
+                        continue;
+                    }
 
                     const files = await folderRes.json();
-                    
-                    // 过滤图片
                     const imageFiles = files.filter(file => 
                         file.type === 'file' && /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)
                     );
+                    
                     if (imageFiles.length === 0) continue;
+
+                    hasRenderedImages = true;
 
                     // 渲染标题
                     const title = document.createElement('h2');
                     title.className = 'category-title';
-                    title.innerHTML = `${categoryName} <span>(${imageFiles.length}张)</span>`;
+                    title.innerHTML = `${folderName} <span>(${imageFiles.length}张)</span>`;
                     app.appendChild(title);
 
                     const gallery = document.createElement('div');
@@ -164,11 +174,16 @@
                     
                     app.appendChild(gallery);
                 }
+
+                // 如果遍历完了，一张图都没渲染出来
+                if (!hasRenderedImages) {
+                    app.innerHTML = `<div style="color:red; text-align:center;">找到了 ${folders.length} 个文件夹，但里面没有任何支持的图片。</div>`;
+                }
+
             } catch (error) {
                 app.innerHTML = `<div style="color:red; padding:20px; text-align:center;">加载出错: ${error.message}</div>`;
             }
         }
-
         // ==========================================
         // 导出 TXT 核心逻辑 (保持不变)
         // ==========================================
