@@ -18,9 +18,13 @@
         .header h1 { font-size: 24px; margin-bottom: 8px; }
         .header p { font-size: 14px; color: #57606a; }
         
+        /* 分类标题栏 */
         .category-title { max-width: 1200px; margin: 40px auto 16px; font-size: 18px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; display: flex; align-items: center; gap: 10px; }
         .category-title span { font-size: 14px; color: #57606a; font-weight: normal; }
         
+        /* 👇 新增：全选复选框样式 */
+        .select-all-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary); }
+
         .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; max-width: 1200px; margin: 0 auto; }
         
         /* 卡片样式 */
@@ -60,7 +64,7 @@
     </div>
 
     <div id="app">
-        <div class="loading">🐈 正在扫描文件夹，请稍候...</div>
+        <div class="loading">🐈 正在自动发现文件夹...</div>
     </div>
 
     <div class="toast" id="toast">✅ 链接已复制！</div>
@@ -73,7 +77,7 @@
         const repoName = "biao-qings"; 
         const branch = "main"; 
         
-        // 你的安全 Token (已拆分防扫描)
+        // 你的安全 Token
         const t1 = "github_pat_11BNMJRWI0oPoSWQX54K3J_";
         const t2 = "QC0JZU9Dr6fIArMTiu1Fmbnw7Nq8QJoio0T5aEjygWhYXET6UFMBX6bKE4P"; 
         const GITHUB_TOKEN = t1 + t2;
@@ -90,12 +94,9 @@
                     { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` } }
                 );
                 
-                if (!rootRes.ok) {
-                    throw new Error(`请求仓库根目录失败！状态码: ${rootRes.status}`);
-                }
+                if (!rootRes.ok) throw new Error(`请求失败: ${rootRes.status}`);
                 
                 const rootItems = await rootRes.json();
-                // 👇 重点修复：GitHub API 返回的文件夹类型是 'dir'
                 const folders = rootItems.filter(item => item.type === 'dir' && !item.name.startsWith('.'));
                 
                 app.innerHTML = ''; 
@@ -105,8 +106,6 @@
                     return;
                 }
 
-                let hasRenderedImages = false; 
-
                 for (const folder of folders) {
                     const folderName = folder.name;
                     const folderRes = await fetch(
@@ -114,10 +113,7 @@
                         { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` } }
                     );
                     
-                    if (!folderRes.ok) {
-                        console.warn(`跳过文件夹 ${folderName}，读取失败`);
-                        continue;
-                    }
+                    if (!folderRes.ok) continue;
 
                     const files = await folderRes.json();
                     const imageFiles = files.filter(file => 
@@ -126,15 +122,38 @@
                     
                     if (imageFiles.length === 0) continue;
 
-                    hasRenderedImages = true;
-
+                    // ==========================================
+                    // 👇 渲染分类标题和全选按钮
+                    // ==========================================
                     const title = document.createElement('h2');
                     title.className = 'category-title';
-                    title.innerHTML = `${folderName} <span>(${imageFiles.length}张)</span>`;
+                    
+                    // 创建全选复选框
+                    const selectAllCb = document.createElement('input');
+                    selectAllCb.type = 'checkbox';
+                    selectAllCb.className = 'select-all-checkbox';
+                    selectAllCb.title = '全选/取消全选本分类';
+                    
+                    // 把复选框塞进标题里（放在最前面）
+                    title.appendChild(selectAllCb);
+                    
+                    // 把文字塞进标题里
+                    const titleText = document.createElement('span');
+                    titleText.innerHTML = `${folderName} <span>(${imageFiles.length}张)</span>`;
+                    title.appendChild(titleText);
+                    
                     app.appendChild(title);
 
+                    // 生成图片网格
                     const gallery = document.createElement('div');
                     gallery.className = 'gallery';
+
+                    // 绑定全选事件
+                    selectAllCb.addEventListener('change', (e) => {
+                        // 找到这个标题下面的所有图片复选框
+                        const checkboxes = gallery.querySelectorAll('.img-checkbox');
+                        checkboxes.forEach(cb => cb.checked = e.target.checked);
+                    });
 
                     imageFiles.forEach(file => {
                         const encodedPath = `${folderName}/${file.name}`.split('/').map(encodeURIComponent).join('/');
@@ -171,11 +190,6 @@
                     
                     app.appendChild(gallery);
                 }
-
-                if (!hasRenderedImages) {
-                    app.innerHTML = `<div style="color:red; text-align:center;">找到了 ${folders.length} 个文件夹，但里面没有任何支持的图片。</div>`;
-                }
-
             } catch (error) {
                 app.innerHTML = `<div style="color:red; padding:20px; text-align:center;">加载出错: ${error.message}</div>`;
             }
