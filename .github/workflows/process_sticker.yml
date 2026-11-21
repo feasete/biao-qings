@@ -6,6 +6,7 @@ on:
 
 jobs:
   process-sticker:
+    if: contains(github.event.issue.labels.*.name, 'sticker-submission')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -31,31 +32,32 @@ jobs:
 
           body = os.environ.get('ISSUE_BODY', '')
           
-          # 从表单中提取分类
           category_match = re.search(r'### 分类文件夹\s*\n\s*(.*?)\s*\n', body)
           category = category_match.group(1).strip() if category_match else "zz-new"
           
-          # 从表单中提取备注
           remark_match = re.search(r'### 表情包备注\s*\n\s*(.*?)\s*\n', body)
           remark = remark_match.group(1).strip() if remark_match else "未命名"
           
-          # 提取图片链接 (GitHub Issue 上传的图片通常带有 user-attachments)
-          img_match = re.search(r'!\[.*?\]\((https://github.com/user-attachments/assets/.*?)\)', body)
+          # 👇 更强大的正则：同时匹配 Markdown 和 HTML 格式的图片链接
+          img_match = re.search(r'\((https://github\.com/user-attachments/assets/.*?)\)', body) or \
+                      re.search(r'src="(https://github\.com/user-attachments/assets/.*?)"', body)
+          
           if not img_match:
-              print("未找到图片链接，跳过。")
+              print("⚠️ 未在 Issue 中找到 GitHub 上传的图片链接，跳过。")
+              # 写一个标记，告诉下一步不要提交
+              with open(os.environ['GITHUB_ENV'], 'a') as f:
+                  f.write("SKIP_COMMIT=true\n")
               exit(0)
               
           img_url = img_match.group(1)
+          print(f"提取到图片链接: {img_url}")
           
-          # 下载图片
           headers = {'User-Agent': 'Mozilla/5.0'}
           img_data = requests.get(img_url, headers=headers).content
           
-          # 安全的文件名 (去空格、特殊字符，保留中文和英文)
           safe_remark = re.sub(r'[\\/:*?"<>|]', '_', remark)
           filename = f"{safe_remark}.png"
           
-          # 确保文件夹存在
           folder_path = os.path.join(category)
           os.makedirs(folder_path, exist_ok=True)
           
@@ -63,20 +65,28 @@ jobs:
           with open(filepath, 'wb') as f:
               f.write(img_data)
               
-          print(f"图片已保存至: {filepath}")
+          print(f"✅ 图片已保存至: {filepath}")
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"IMAGE_PATH={filepath}\n")
+              f.write("SKIP_COMMIT=false\n")
           EOF
 
       - name: Commit and Push
+        if: env.SKIP_COMMIT != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Auto-add sticker from issue #${{ github.event.issue.number }}"
-          git push
+          # 👇 加一层保险，如果有变化才提交
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Auto-add sticker from issue #${{ github.event.issue.number }}"
+            git push
+          else
+            echo "没有文件变化，跳过提交"
+          fi
 
       - name: Comment and Close Issue
+        if: env.SKIP_COMMIT != 'true'
         uses: actions/github-script@v7
         with:
           script: |
