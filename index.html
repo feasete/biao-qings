@@ -91,40 +91,57 @@
         const app = document.getElementById('app');
         const toast = document.getElementById('toast');
 
-        // 核心逻辑：自动扫描目录
+         // 核心逻辑：自动扫描目录
         async function loadStickers() {
             app.innerHTML = ''; 
 
             for (const [categoryName, folderName] of Object.entries(folderMap)) {
                 try {
-                    const apiUrl = `https://data.jsdelivr.com/v1/packages/gh/${githubUser}/${repoName}@${branch}`;
-                    const response = await fetch(apiUrl);
-                    if (!response.ok) continue;
+                    // 👇 改成官方接口，直接精准查询单个文件夹
+                    const apiUrl = `https://api.github.com/repos/${githubUser}/${repoName}/contents/${folderName}?ref=${branch}`;
                     
-                    const data = await response.json();
-                    const targetFolder = data.files.find(f => f.type === 'directory' && f.name === folderName);
-                    if (!targetFolder || !targetFolder.files) continue;
-
-                    const imageFiles = targetFolder.files.filter(file => 
+                    // 👇 带上你的 Token 请求头
+                    const response = await fetch(apiUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        console.warn(`获取 ${folderName} 失败:`, response.status);
+                        continue;
+                    }
+                    
+                    const files = await response.json();
+                    
+                    // 👇 官方接口直接返回的就是当前文件夹的内容，不需要去 find 了
+                    const imageFiles = files.filter(file => 
                         file.type === 'file' && /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)
                     );
 
                     if (imageFiles.length === 0) continue;
 
+                    // 生成分类标题
                     const title = document.createElement('h2');
                     title.className = 'category-title';
                     title.innerHTML = `${categoryName} <span>(${imageFiles.length}张)</span>`;
                     app.appendChild(title);
 
+                    // 生成图片网格
                     const gallery = document.createElement('div');
                     gallery.className = 'gallery';
 
                     imageFiles.forEach(file => {
+                        // 修复图片加载路径，确保原图不报 404
                         const encodedPath = `${folderName}/${file.name}`.split('/').map(encodeURIComponent).join('/');
+                        
+                        // 预览用相对路径（或者是完整链接）
                         const fullUrl = `https://feasete.github.io/${repoName}/${encodedPath}`;
 
                         const card = document.createElement('div');
                         card.className = 'img-card';
+                        
                         
                         // 1. 添加复选框
                         const checkbox = document.createElement('input');
