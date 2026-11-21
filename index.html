@@ -81,10 +81,7 @@
         const app = document.getElementById('app');
         const toast = document.getElementById('toast');
 
-        // ==========================================
-        // 核心逻辑：自动发现根目录下的所有文件夹
-        // ==========================================
-               async function loadStickers() {
+        async function loadStickers() {
             app.innerHTML = '<div class="loading">🐈 正在自动发现文件夹...</div>';
             
             try {
@@ -94,20 +91,21 @@
                 );
                 
                 if (!rootRes.ok) {
-                    throw new Error(`请求仓库根目录失败！状态码: ${rootRes.status}。可能是 Token 错误或 API 限流。`);
+                    throw new Error(`请求仓库根目录失败！状态码: ${rootRes.status}`);
                 }
                 
                 const rootItems = await rootRes.json();
-                const folders = rootItems.filter(item => item.type === 'directory' && !item.name.startsWith('.'));
+                // 👇 重点修复：GitHub API 返回的文件夹类型是 'dir'
+                const folders = rootItems.filter(item => item.type === 'dir' && !item.name.startsWith('.'));
                 
-                app.innerHTML = ''; // 清空加载提示
+                app.innerHTML = ''; 
 
                 if (folders.length === 0) {
                     app.innerHTML = `<div style="color:red; text-align:center;">仓库里没有找到任何文件夹哦！</div>`;
                     return;
                 }
 
-                let hasRenderedImages = false; // 标记是否成功渲染了图片
+                let hasRenderedImages = false; 
 
                 for (const folder of folders) {
                     const folderName = folder.name;
@@ -130,7 +128,6 @@
 
                     hasRenderedImages = true;
 
-                    // 渲染标题
                     const title = document.createElement('h2');
                     title.className = 'category-title';
                     title.innerHTML = `${folderName} <span>(${imageFiles.length}张)</span>`;
@@ -175,7 +172,6 @@
                     app.appendChild(gallery);
                 }
 
-                // 如果遍历完了，一张图都没渲染出来
                 if (!hasRenderedImages) {
                     app.innerHTML = `<div style="color:red; text-align:center;">找到了 ${folders.length} 个文件夹，但里面没有任何支持的图片。</div>`;
                 }
@@ -184,6 +180,7 @@
                 app.innerHTML = `<div style="color:red; padding:20px; text-align:center;">加载出错: ${error.message}</div>`;
             }
         }
+
         // ==========================================
         // 导出 TXT 核心逻辑 (保持不变)
         // ==========================================
