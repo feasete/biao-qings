@@ -6,7 +6,6 @@ on:
 
 jobs:
   process-sticker:
-    if: contains(github.event.issue.labels.*.name, 'sticker-submission')
     runs-on: ubuntu-latest
     permissions:
       contents: write
