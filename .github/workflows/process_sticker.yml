@@ -1,0 +1,96 @@
+name: Process Sticker Submission
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  process-sticker:
+    if: contains(github.event.issue.labels.*.name, 'sticker-submission')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Parse Issue and Download Image
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          python - <<'EOF'
+          import os, re, requests, urllib.parse
+
+          body = os.environ.get('ISSUE_BODY', '')
+          
+          # 从表单中提取分类
+          category_match = re.search(r'### 分类文件夹\s*\n\s*(.*?)\s*\n', body)
+          category = category_match.group(1).strip() if category_match else "zz-new"
+          
+          # 从表单中提取备注
+          remark_match = re.search(r'### 表情包备注\s*\n\s*(.*?)\s*\n', body)
+          remark = remark_match.group(1).strip() if remark_match else "未命名"
+          
+          # 提取图片链接 (GitHub Issue 上传的图片通常带有 user-attachments)
+          img_match = re.search(r'!\[.*?\]\((https://github.com/user-attachments/assets/.*?)\)', body)
+          if not img_match:
+              print("未找到图片链接，跳过。")
+              exit(0)
+              
+          img_url = img_match.group(1)
+          
+          # 下载图片
+          headers = {'User-Agent': 'Mozilla/5.0'}
+          img_data = requests.get(img_url, headers=headers).content
+          
+          # 安全的文件名 (去空格、特殊字符，保留中文和英文)
+          safe_remark = re.sub(r'[\\/:*?"<>|]', '_', remark)
+          filename = f"{safe_remark}.png"
+          
+          # 确保文件夹存在
+          folder_path = os.path.join(category)
+          os.makedirs(folder_path, exist_ok=True)
+          
+          filepath = os.path.join(folder_path, filename)
+          with open(filepath, 'wb') as f:
+              f.write(img_data)
+              
+          print(f"图片已保存至: {filepath}")
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"IMAGE_PATH={filepath}\n")
+          EOF
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Auto-add sticker from issue #${{ github.event.issue.number }}"
+          git push
+
+      - name: Comment and Close Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const imagePath = process.env.IMAGE_PATH;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🎉 感谢贡献！你的表情包已经成功自动收纳到 \`${imagePath}\` 啦！`
+            });
+            github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed'
+            });
